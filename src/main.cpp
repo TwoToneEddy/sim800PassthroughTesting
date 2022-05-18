@@ -22,28 +22,16 @@ struct RESPONSE{
             int size;
 };
 
-bool Sim800::sortResponse(String resp){
+MSG_CONTENTS message;
+RESPONSE response;
 
-    short lineCounter = 0;
-    for(int i =0; i < sizeof(response.lines)/sizeof(String); i++){
-        response.lines[i] = "";
-    }
-    for(int i = 0; i < resp.length(); i++){
-        if(resp[i]!='\n' && resp[i]!='\r')
-            response.lines[lineCounter] += resp[i];
-        if(resp[i]=='\n'){
-            lineCounter ++;
-        } 
-    }
-    response.raw = resp;
-    response.size = lineCounter;
-}
+
 
 String sendCommand(String cmd){
 
   char buffer[256];
   int availableBytes;
-
+  int i,j;
   Serial.print(cmd);
   delay(500);
   availableBytes = Serial.available();
@@ -56,9 +44,16 @@ String sendCommand(String cmd){
     availableBytes = Serial.available();
   }
 
-  for(int i=0; i<availableBytes; i++)
+  for(i=0; i<availableBytes; i++)
   {
       buffer[i] = Serial.read();
+  }
+  delay(100);
+  availableBytes = Serial.available();
+
+  for(j=i; j<availableBytes; i++)
+  {
+      buffer[j] = Serial.read();
   }
   delay(100);
 
@@ -68,49 +63,6 @@ String sendCommand(String cmd){
   return buffer;
 }
 
-MSG_CONTENTS processMessage(int index){
-
-    MSG_CONTENTS message;
-    RESPONSE response;
-    char cmd[24]="";
-    int i = 0;
-    int lineCounter = 0;
-    int numberStart = 0;
-    int numberEnd = 0;
-    int bodyStart = 0;
-    int bodyEnd = 0;
-    String buf;
-
-    debugPort.println("1");
-    message.message = "";
-    message.senderNumber = "";
-
-    sprintf(cmd,"AT+CMGR=%d\r\n",index);
-    debugPort.println("2");
-    sortResponse(sendCommand(cmd));
-    debugPort.println("4");
-
-    while(response.lines[1][i] != '+' || response.lines[1][i+1] != '4')
-        i++;
-
-    debugPort.println("5");
-    numberStart = i;
-
-    // Find end of number by looking for ,
-    while(response.lines[1][i] != ',')
-        i++;
-    numberEnd = i-1;
-
-    for(i = numberStart; i < numberEnd; i++)
-        message.senderNumber+=response.lines[1][i];
-
-    if(message.senderNumber.length()!=13){
-        message.senderNumber = "07747465192";
-    }
-
-    message.message = response.lines[2];
-
-}
 
 
 
@@ -134,6 +86,7 @@ int getMostRecentMSGIndex(char inp[]){
 int checkForSms(){
 
   char buffer[256];
+  char cmd[256];
   int smsIndex =0;
   MSG_CONTENTS message;
   int availableBytes= Serial.available();
@@ -150,9 +103,11 @@ int checkForSms(){
     if(strstr(buffer,"+CMTI:")!=NULL){
       debugPort.println("Found CMTI");
       smsIndex=getMostRecentMSGIndex(buffer);
-      message = processMessage(smsIndex);
-      debugPort.println(message.senderNumber);
-      debugPort.println(message.message);
+      debugPort.println(smsIndex);
+      sprintf(cmd,"AT+CMGR=%d\r\n",smsIndex);
+      debugPort.print(sendCommand(cmd));
+      delay(5000);
+      debugPort.print(sendCommand(DELETE_MSGS_CMD));
     }
     else
       smsIndex = -1;
