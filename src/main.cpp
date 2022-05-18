@@ -22,6 +22,23 @@ struct RESPONSE{
             int size;
 };
 
+bool Sim800::sortResponse(String resp){
+
+    short lineCounter = 0;
+    for(int i =0; i < sizeof(response.lines)/sizeof(String); i++){
+        response.lines[i] = "";
+    }
+    for(int i = 0; i < resp.length(); i++){
+        if(resp[i]!='\n' && resp[i]!='\r')
+            response.lines[lineCounter] += resp[i];
+        if(resp[i]=='\n'){
+            lineCounter ++;
+        } 
+    }
+    response.raw = resp;
+    response.size = lineCounter;
+}
+
 String sendCommand(String cmd){
 
   char buffer[256];
@@ -70,7 +87,7 @@ MSG_CONTENTS processMessage(int index){
 
     sprintf(cmd,"AT+CMGR=%d\r\n",index);
     debugPort.println("2");
-    sendCommand(cmd);
+    sortResponse(sendCommand(cmd));
     debugPort.println("4");
 
     while(response.lines[1][i] != '+' || response.lines[1][i+1] != '4')
