@@ -57,15 +57,11 @@ String sendCommandSimple(String cmd){
   return _readSerial(1000);
 }
 
-char* sendCommand(char *cmd){
-  char *buffer;
-  int lineCounter=0, charCounter=0,timeoutCounter=0,rxComplete=0;
-  char terminationChar = '\n';
+int sendCommand(char *buffer, char *cmd){
+  int charCounter=0,timeoutCounter=0,rxComplete=0;
   int timeout = 10;
 
-  buffer = (char*)calloc(200,sizeof(char));
   Serial.print(cmd);
-  delay(500);
 
   while(rxComplete == 0){
     while(Serial.available()){
@@ -73,29 +69,14 @@ char* sendCommand(char *cmd){
       buffer[charCounter] = Serial.read();
       charCounter ++;
     }
-    //debugPort.println(4);
 
     timeoutCounter ++;
     delay(50);
     if(timeoutCounter >= timeout)
       rxComplete = 1;
   }
-  //debugPort.println(buffer);
-  return buffer;
-  /*
-  debugPort.print("Got ");
-  debugPort.print(lineCounter);
-  debugPort.println(" lines");
-
-  for(int j =0; j < lineCounter; j++){
-    debugPort.print("Line ");
-    debugPort.print(j);
-    debugPort.println(":");
-    debugPort.print(buffer[j]);
-  }
-
-    debugPort.println();
-    */
+  buffer[charCounter] = '\0';
+  return strlen(charCounter);
 }
 
 /*
@@ -143,6 +124,7 @@ void printByte(char *buf){
   }
 }
 int i;
+char gsmBuffer[256];
 void setup() {
   // put your setup code here, to run once:
   debugPort.begin(57600);
@@ -151,9 +133,11 @@ void setup() {
   wokenUp = false;
   i =0;
   delay(1000);
-  debugPort.print(sendCommand(AUTO_BAUD_CMD));
+  sendCommand(gsmBuffer,AUTO_BAUD_CMD);
+  debugPort.print(buffer);
   delay(1000);
-  debugPort.print(sendCommand(TEXT_MODE_CMD));
+  sendCommand(gsmBuffer,TEXT_MODE_CMD);
+  debugPort.print(buffer);
   delay(1000);/*
   debugPort.print(sendCommand(CHECK_BATTERY_CMD));
   delay(1000);
