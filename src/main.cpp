@@ -76,7 +76,7 @@ int sendCommand(char *buffer, char *cmd){
       rxComplete = 1;
   }
   buffer[charCounter] = '\0';
-  return strlen(charCounter);
+  return charCounter;
 }
 
 /*
@@ -125,6 +125,7 @@ void printByte(char *buf){
 }
 int i;
 char gsmBuffer[256];
+
 void setup() {
   // put your setup code here, to run once:
   debugPort.begin(57600);
@@ -132,28 +133,26 @@ void setup() {
   digitalWrite (2, HIGH);  // enable pull-up
   wokenUp = false;
   i =0;
+  for(i = 0; i < 5; i++){
+    debugPort.println("Waiting for SIM800");
+    delay(1000);
+  }
+  debugPort.println("Sim800 wait over");
+  
+  sendCommand(gsmBuffer,AUTO_BAUD_CMD);
+  debugPort.print(gsmBuffer);
   delay(1000);
   sendCommand(gsmBuffer,AUTO_BAUD_CMD);
-  debugPort.print(buffer);
+  debugPort.print(gsmBuffer);
   delay(1000);
   sendCommand(gsmBuffer,TEXT_MODE_CMD);
-  debugPort.print(buffer);
-  delay(1000);/*
-  debugPort.print(sendCommand(CHECK_BATTERY_CMD));
+  debugPort.print(gsmBuffer);
   delay(1000);
-  debugPort.print(sendCommand(AUTO_BAUD_CMD));
+  sendCommand(gsmBuffer,CHECK_BATTERY_CMD);
+  debugPort.print(gsmBuffer);
   delay(1000);
-  debugPort.print(sendCommand("AT+CMGR=1\r\n"));
-  delay(1000);
-  debugPort.print(sendCommand(CHECK_BATTERY_CMD));
-  delay(1000);*/
-  //debugPort.print(sendCommand(AUTO_BAUD_CMD));
-  //debugPort.print(sendCommand(TEXT_MODE_CMD));
-  /*
-  debugPort.print(sendCommand(CHECK_BATTERY_CMD));
-  debugPort.print(sendCommand(SLEEP_CMD));
-  delay(1000);*/
-  //debugPort.println("Ready");
+  debugPort.println("Ready");
+  i=0;
 
 }
 
@@ -165,9 +164,16 @@ void loop() {
   //debugPort.println(i);
   //debugPort.print(sendCommand("AT+CMGR=1\r\n"));
   //debugPort.flush();
+
+  debugPort.printf("Cycle %d\n",i);
   i++;
+  sendCommand(gsmBuffer,"AT+CMGR=1\r\n");
+  debugPort.print(gsmBuffer);
+  sendCommand(gsmBuffer,CHECK_BATTERY_CMD);
+  debugPort.print(gsmBuffer);
   delay(1000);
-  /*  
+  
+  /*
   if (Serial.available()) {      // If anything comes in Serial (USB);,	
     debugPort.write(Serial.read());   // read it and send it out Serial1 (pins 0 & 1)
 
