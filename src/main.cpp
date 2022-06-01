@@ -23,47 +23,21 @@ struct RESPONSE{
             int size;
 };
 
-MSG_CONTENTS message;
+//MSG_CONTENTS message;
 RESPONSE response;
-
-String _readSerial(uint32_t timeout)
-{
-
-    uint64_t timeOld = millis();
-
-
-    while (!Serial.available() && !(millis() > timeOld + timeout))
-    {
-        delay(13);
-    }
-
-    String str;
-
-    while(Serial.available())
-    {
-        if (Serial.available()>0)
-        {
-            str += (char) Serial.read();
-        }
-    }
-
-    return str;
-
-}
-
-String sendCommandSimple(String cmd){
-  Serial.print(cmd);
-  delay(500);
-  return _readSerial(1000);
-}
+char gsmBuffer[256];
+char recipientNumber[32];
+char message[256];
+int batteryVoltage;
 
 int sendCommand(char *buffer, char *cmd){
   int charCounter=0,timeoutCounter=0,rxComplete=0;
   int timeout = 10;
+  int attemptCounter = 0;
 
   Serial.print(cmd);
 
-  while(rxComplete == 0){
+  while(rxComplete == 0 && attemptCounter < 2){
     while(Serial.available()){
       timeoutCounter = 0;
       buffer[charCounter] = Serial.read();
@@ -72,73 +46,63 @@ int sendCommand(char *buffer, char *cmd){
 
     timeoutCounter ++;
     delay(50);
-    if(timeoutCounter >= timeout)
-      rxComplete = 1;
+
+    if(timeoutCounter >= timeout){
+      if(charCounter > 0)
+        rxComplete = 1;
+      else{
+        attemptCounter ++;
+        timeoutCounter = 0;
+
+        // Only attempt a second time
+        if(attemptCounter == 1){
+          debugPort.printf("Sending %s again\n",cmd);
+          Serial.print(cmd);
+        }
+      }
+    }
+
   }
+
   buffer[charCounter] = '\0';
   return charCounter;
 }
 
-/*
-String sendCommand(String cmd){
-
+void processMessage(char *number,char *msg, int msgNumber){
   char buffer[256];
-  int availableBytes;
-  int i,j;
-  Serial.print(cmd);
-  delay(500);
-  availableBytes = Serial.available();
+  char command[24];
+  const char s[2] = "\"";
+  char *token;
+  int tokenCounter = 0;
 
-  if(availableBytes < 1){
-    delay(500);
-    debugPort.println("No response, Trying again.");
-    Serial.print(cmd);
-    delay(500);
-    availableBytes = Serial.available();
+  sprintf(command,"AT+CMGR=%d\r\n",msgNumber);
+  sendCommand(buffer,command);
+
+  //debugPort.println("In processMessage()");
+  token = strtok(buffer, s);
+
+  while( token != NULL ) {
+    //debugPort.printf( "Token %d: %s\n",tokenCounter, token );
+    if(tokenCounter == 3)
+      strcpy(number,token);
+    if(tokenCounter == 7)
+      strcpy(msg,&token[2]);
+
+    token = strtok(NULL, s);
+    tokenCounter++;
   }
 
-  for(i=0; i<availableBytes; i++)
-  {
-      buffer[i] = Serial.read();
-  }
-  delay(100);
-  availableBytes = Serial.available();
 
-  for(j=i; j<availableBytes; i++)
-  {
-      buffer[j] = Serial.read();
-  }
-  delay(100);
-
-  while(Serial.available()){
-    Serial.read();
-  }
-  return buffer;
-}*/
-
-
-void printByte(char *buf){
-  //debugPort.println(strlen(buf));
-  for(int i = 0; i < strlen(buf); i++){
-    debugPort.write(buf[i]);
-  }
 }
-int i;
-char gsmBuffer[256];
 
-void setup() {
-  // put your setup code here, to run once:
-  debugPort.begin(57600);
-  Serial.begin(57600);
-  digitalWrite (2, HIGH);  // enable pull-up
-  wokenUp = false;
-  i =0;
+void initSim800(){
+  int i = 0;
+
   for(i = 0; i < 5; i++){
     debugPort.println("Waiting for SIM800");
     delay(1000);
   }
   debugPort.println("Sim800 wait over");
-  
   sendCommand(gsmBuffer,AUTO_BAUD_CMD);
   debugPort.print(gsmBuffer);
   delay(1000);
@@ -151,27 +115,37 @@ void setup() {
   sendCommand(gsmBuffer,CHECK_BATTERY_CMD);
   debugPort.print(gsmBuffer);
   delay(1000);
+  sendCommand(gsmBuffer,WAKE_CMD);
+  debugPort.print(gsmBuffer);
+  delay(1000);
   debugPort.println("Ready");
-  i=0;
+
+}
+
+
+
+void setup() {
+  // put your setup code here, to run once:
+  debugPort.begin(57600);
+  Serial.begin(57600);
+  initSim800();
 
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  
-  //debugPort.println(checkForSms());
-  //delay(1000);
-  //debugPort.println(i);
-  //debugPort.print(sendCommand("AT+CMGR=1\r\n"));
-  //debugPort.flush();
+ 
 
-  debugPort.printf("Cycle %d\n",i);
-  i++;
+  /*
   sendCommand(gsmBuffer,"AT+CMGR=1\r\n");
   debugPort.print(gsmBuffer);
   sendCommand(gsmBuffer,CHECK_BATTERY_CMD);
   debugPort.print(gsmBuffer);
-  delay(1000);
+  */
+
+  processMessage(recipientNumber,message,1);
+  debugPort.printf("Number:%s\n",recipientNumber);
+  debugPort.printf("Message: %s",message);
+  delay(2000);
   
   /*
   if (Serial.available()) {      // If anything comes in Serial (USB);,	
