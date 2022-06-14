@@ -28,7 +28,9 @@ RESPONSE response;
 char gsmBuffer[256];
 char recipientNumber[32];
 char message[256];
-int batteryVoltage;
+char batteryVoltage[16];
+char resp[256];
+uint8_t messageIndex;
 
 int sendCommand(char *buffer, char *cmd){
   int charCounter=0,timeoutCounter=0,rxComplete=0;
@@ -66,6 +68,57 @@ int sendCommand(char *buffer, char *cmd){
 
   buffer[charCounter] = '\0';
   return charCounter;
+}
+
+/*
+Token 0: AT+CBC
++CBC: 0
+Token 1: 88
+Token 2: 4109
+
+OK
+*/
+void getVbat(char *vbat){
+  const char s[2] = ",";
+  char buffer[256];
+  char *token;
+  int tokenCounter = 0;
+
+  sendCommand(buffer,CHECK_BATTERY_CMD);
+  token = strtok(buffer, s);
+
+  while( token != NULL ) {
+    debugPort.printf( "Token %d: %s\n",tokenCounter, token );
+    if(tokenCounter == 2)
+      strcpy(vbat,token);
+
+    token = strtok(NULL, s);
+    tokenCounter++;
+  }
+
+
+}
+
+void sendSms(char *number, char *msg){
+  char numberCommand[64];
+  char msgCommand[128];
+
+  
+  sendCommand(gsmBuffer,TEXT_MODE_CMD);
+  debugPort.print(gsmBuffer);
+  sprintf(numberCommand,"AT+CMGS=\"%s\"\r\n",number);
+  sendCommand(gsmBuffer,numberCommand);
+  debugPort.print(gsmBuffer);
+
+  sprintf(msgCommand,"%s%c",msg,0x1A);
+  sendCommand(gsmBuffer,msgCommand);
+  debugPort.print(gsmBuffer);
+  delay(500);
+  Serial.println();
+  delay(500);
+
+  
+
 }
 
 void processMessage(char *number,char *msg, int msgNumber){
@@ -122,6 +175,41 @@ void initSim800(){
 
 }
 
+// +CMTI: "SM",9
+uint8_t checkMsg(){
+  char buffer[64] = "";
+  char num[8] = "";
+  int i = 0;
+  const char s[2] = ",";
+  char *token;
+  int tokenCounter = 0;
+  uint8_t msgIndex = 0;
+
+  debugPort.println("Check message");
+  while(Serial.available()){
+    buffer[i] = Serial.read();
+    i++;
+  }
+
+  if(strstr(buffer,"+CMTI")){
+    //debugPort.printf("Got Message:\n %s",buffer);
+
+    token = strtok(buffer, s);
+
+    while( token != NULL ) {
+      //debugPort.printf( "Token %d: %s\n",tokenCounter, token );
+      if(tokenCounter == 1)
+        strcpy(num,token);
+
+      token = strtok(NULL, s);
+      tokenCounter++;
+    }
+    msgIndex = atoi(num);
+     
+  }
+
+  return msgIndex;
+}
 
 
 void setup() {
@@ -129,11 +217,28 @@ void setup() {
   debugPort.begin(57600);
   Serial.begin(57600);
   initSim800();
+  messageIndex = 0;
+  //sendSms("+447747465192", "Testing");
 
 }
 
 void loop() {
- 
+
+  messageIndex = checkMsg();
+  debugPort.printf("messageIndex: %d\n",messageIndex);
+  if(messageIndex > 0){
+    processMessage(recipientNumber,message,messageIndex);
+    debugPort.printf("Number : %s\nMessage : %s\n",recipientNumber,message);
+    
+    getVbat(batteryVoltage);
+    //sprintf(resp,"Got: %s, vbat: %s",message,batteryVoltage);
+    sendSms(recipientNumber,batteryVoltage);
+    
+  }
+  delay(5000);
+  //delay(5000);
+  //sendSms("+447747465192", "Testing");
+  //delay(30000);
 
   /*
   sendCommand(gsmBuffer,"AT+CMGR=1\r\n");
@@ -142,12 +247,17 @@ void loop() {
   debugPort.print(gsmBuffer);
   */
 
+ 
+  /*
   processMessage(recipientNumber,message,1);
   debugPort.printf("Number:%s\n",recipientNumber);
   debugPort.printf("Message: %s",message);
   delay(2000);
+  */
   
-  /*
+
+
+  /*  
   if (Serial.available()) {      // If anything comes in Serial (USB);,	
     debugPort.write(Serial.read());   // read it and send it out Serial1 (pins 0 & 1)
 
@@ -155,5 +265,6 @@ void loop() {
 
   if (debugPort.available()) {     // If anything comes in Serial1 (pins 0 & 1)	
     Serial.write(debugPort.read());   // read it and send it out Serial (USB)
-  }*/
+  }
+  */
 }
